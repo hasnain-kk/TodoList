@@ -1,0 +1,96 @@
+const AWS = require('aws-sdk');
+const dynamoDB = new AWS.DynamoDB.DocumentClient();
+
+// Function to add a new ToDo item to the DynamoDB table
+exports.createToDoItem = async (event) => {
+    // Extract ToDo item details from the event
+    const { text } = JSON.parse(event.body);
+
+    // Generate a unique itemId
+    const itemId = generateUniqueItemId();
+
+    // Construct the DynamoDB item
+    const params = {
+        TableName: 'ToDoItems',
+        Item: {
+            itemId,
+            text,
+            status: 'pending',
+            timestamp: new Date().getTime(),
+        },
+    };
+
+    try {
+        // Put the item in the DynamoDB table
+        await dynamoDB.put(params).promise();
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ itemId, text, status: 'pending' }),
+        };
+    } catch (error) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: 'Failed to create ToDo item.' }),
+        };
+    }
+};
+
+// Function to update the status of a ToDo item
+exports.updateToDoItemStatus = async (event) => {
+    // Extract itemId and new status from the event
+    const { itemId, status } = JSON.parse(event.body);
+
+    // Construct the DynamoDB update parameters
+    const params = {
+        TableName: 'ToDoItems',
+        Key: { itemId },
+        UpdateExpression: 'set #statusAttr = :status, #timestampAttr = :timestamp',
+        ExpressionAttributeNames: {
+            '#statusAttr': 'status',
+            '#timestampAttr': 'timestamp',
+        },
+        ExpressionAttributeValues: {
+            ':status': status,
+            ':timestamp': new Date().getTime(),
+        },
+        ReturnValues: 'ALL_NEW',
+    };
+
+    try {
+        // Update the item in the DynamoDB table
+        const result = await dynamoDB.update(params).promise();
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify(result.Attributes),
+        };
+    } catch (error) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: 'Failed to update ToDo item status.' }),
+        };
+    }
+};
+
+// Function to retrieve all ToDo items
+exports.getAllToDoItems = async () => {
+    const params = {
+        TableName: 'ToDoItems',
+    };
+
+    try {
+        // Scan the DynamoDB table to get all ToDo items
+        const result = await dynamoDB.scan(params).promise();
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify(result.Items),
+        };
+    } catch (error) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: 'Failed to retrieve ToDo items.' }),
+        };
+    }
+};
